@@ -1,4 +1,6 @@
+import { ChangeEvent, useEffect, useState } from "react";
 import { IconPlus, IconUser } from "@tabler/icons-react";
+
 import {
 	Client,
 	CreateClientModal,
@@ -6,68 +8,62 @@ import {
 	Header,
 	SearchInput,
 } from "../components";
-import { useEffect, useState } from "react";
-import { Client as IClient } from "../interfaces";
-import { clientsMock } from "../mocks";
 import { useToggle } from "../hooks";
+import { useGetCustomers } from "../api";
+import { Client as IClient } from "../interfaces";
+import { FetchingData } from "../components/FetchingData";
 
 export const Clients = () => {
-	const [clients, setClients] = useState<IClient[]>([]);
-	const [currentOrderOption, setCurrentOrderOption] = useState("customerId");
-	const [isOpen, setIsOpen] = useToggle();
+	const [isOpen, toogleIsOpen] = useToggle();
 
-	const orderOptions: { label: string; value: string }[] = [
+	const [currentOrderOption, setCurrentOrderOption] = useState("");
+
+	const orderOptions = [
+		{ label: "Id", value: "customerId" },
 		{ label: "Nombre", value: "name" },
-		{ label: "ID", value: "customerId" },
 		{ label: "Curp", value: "curp" },
-		{ label: "edad", value: "birthdate" },
+		{ label: "Edad", value: "birthdate" },
 	];
-
-	useEffect(() => {
-		setClients(clientsMock);
-		setClients((prevState) => orderClients(prevState, currentOrderOption));
-	}, []);
 
 	const orderClients = (
 		clients: IClient[],
 		currentOrderOption: string,
 	): IClient[] => {
-		let key = currentOrderOption as keyof (typeof clients)[0];
+		const key = currentOrderOption as keyof IClient;
+		const copyClients = [...clients];
 
-		const newClients: IClient[] = clients.sort((a: IClient, b: IClient) => {
+		const orderedClients = copyClients.sort((a, b) => {
 			if (a[key] > b[key]) return 1;
 			if (a[key] < b[key]) return -1;
 			return 0;
 		});
-		return newClients;
+
+		return orderedClients;
 	};
 
-	const handleDropdown = (e: React.ChangeEvent<HTMLSelectElement>) => {
+	const [search, setSearch] = useState("");
+	const [clients, setClients] = useState<IClient[]>([]);
+
+	const { isError, isLoading, mutate } = useGetCustomers();
+
+	useEffect(() => {
+		getCustomersInfo();
+	}, [search]);
+
+	const handleDropdown = (e: ChangeEvent<HTMLSelectElement>) => {
 		setCurrentOrderOption(e.target.value);
 		setClients(orderClients(clients, e.target.value));
 	};
 
-	const handleSearch = (searchWord: string) => {
-		if (searchWord === "") {
-			setClients(clientsMock);
-		} else {
-			let newClients = clientsMock.filter((client) => {
-				if (searchWord === client.customerId.toString()) {
-					return client;
-				}
-			});
-			setClients(newClients);
-		}
+	const getCustomersInfo = () => {
+		mutate(search, {
+			onSuccess: (data) => setClients(data),
+		});
 	};
 
 	return (
 		<>
-			<CreateClientModal
-				isOpen={isOpen}
-				onClose={() => {
-					setIsOpen();
-				}}
-			/>
+			<CreateClientModal isOpen={isOpen} getCustomersInfo={getCustomersInfo} onClose={() => toogleIsOpen()} />
 
 			<Header>
 				<h1 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -81,12 +77,12 @@ export const Clients = () => {
 					/>
 					<SearchInput
 						Icon={IconUser}
-						onSearch={(e) => handleSearch(e.target.value)}
+						onSearch={(e) => setSearch(e.target.value)}
 						propertie="clientes"
 					>
 						<button
 							type="button"
-							onClick={() => setIsOpen()}
+							onClick={() => toogleIsOpen()}
 							className="p-2.5 text-sm font-medium text-white bg-blue-700 rounded-lg border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300"
 						>
 							<IconPlus className="w-4 h-4" />
@@ -96,27 +92,16 @@ export const Clients = () => {
 			</Header>
 
 			<section className="flex flex-col items-center h-[calc(100vh-10rem)] mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<ul
-					role="list"
-					className="my-4 overflow-auto divide-y divide-gray-100"
-				>
-					{clients.length === 0 ? (
-						<div className="flex flex-col items-center justify-center h-full">
-							<p className="text-3xl font-bold text-center">
-								¡Oh no! :(
-							</p>
-
-							<p className="mt-5 text-lg text-center">
-								Algo no ha salido como esperabamos. Por favor,
-								intentalo más tarde.
-							</p>
-						</div>
-					) : (
-						clients.map((client) => (
+				<FetchingData isLoading={isLoading} isError={isError}>
+					<ul
+						role="list"
+						className="my-4 overflow-auto divide-y divide-gray-100"
+					>
+						{clients.map((client) => (
 							<Client client={client} key={client.customerId} />
-						))
-					)}
-				</ul>
+						))}
+					</ul>
+				</FetchingData>
 			</section>
 		</>
 	);
